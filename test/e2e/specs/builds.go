@@ -2,6 +2,7 @@ package specs
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 
 	. "github.com/onsi/ginkgo"
@@ -11,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/openshift/openshift-azure/test/sanity"
+	"github.com/openshift/openshift-azure/test/util/log"
 )
 
 var _ = Describe("Openshift on Azure end user e2e tests [EndUser][EveryPR]", func() {
@@ -37,16 +39,15 @@ var _ = Describe("Openshift on Azure end user e2e tests [EndUser][EveryPR]", fun
 		ctx := context.Background()
 		namespace, err := sanity.Checker.CreateProject(ctx)
 		name := namespace + "-build"
+		testlogger := log.GetTestLogger()
 
-		Expect(err).To(BeNil())
+		// Expect(err).To(BeNil())
 		// defer func() {
 		// 	By("deleting project")
 		// 	_ = sanity.Checker.DeleteProject(ctx, namespace)
 		// }()
 
-		// buildConfig := &buildv1.BuildConfig{}
-		// buildConfig.Name = fmt.Sprintf("%v-build", namespace)
-
+		By("creating a binary BuildConfig")
 		bc := &buildv1.BuildConfig{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:   name,
@@ -63,34 +64,30 @@ var _ = Describe("Openshift on Azure end user e2e tests [EndUser][EveryPR]", fun
 				},
 			},
 		}
-
-		// Spec: buildv1.BuildSpec{
-		// 	CommonSpec: buildv1.CommonSpec{
-		// 		Source: buildv1.BuildSource{
-
-		// buildv1.BuildSourceBinary{}
-		By("creating a binary BuildConfig")
-		_, buildErr := sanity.Checker.Client.EndUser.BuildV1.BuildConfigs(namespace).Create(bc)
+		build, buildErr := sanity.Checker.Client.EndUser.BuildV1.BuildConfigs(namespace).Create(bc)
 		Expect(buildErr).To(BeNil())
 
 		By("validating starting a build for a binary BuildConfig")
 
-		buildRequest := &buildv1.BinaryBuildRequestOptions{
+		buildClient := sanity.Checker.Client.EndUser.BuildV1.RESTClient()
+
+		buildRequestOptions := &buildv1.BinaryBuildRequestOptions{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: name,
+				Name:      build.Name,
+				Namespace: build.Namespace,
 			},
 			AsFile: "Dockerfile",
 		}
+		bytes, err := json.Marshal(buildRequestOptions)
+		testlogger.Error(string(bytes))
 
-		instantiateClient := buildclientmanual.NewBuildInstantiateBinaryClient(sanity.Checker.Client.EndUser.BuildV1.RESTClient(), namespace)
+		instantiateClient := buildclientmanual.NewBuildInstantiateBinaryClient(buildClient, namespace)
 
-		// b, err := sanity.Checker.Client.EndUser.BuildV1.BuildConfigs(namespace).Instantiate(name, buildRequest)
-		//b, err := sanity.Checker.Client.EndUser.BuildV1.
 		r := strings.NewReader("FROM scratch")
-		b, err := instantiateClient.InstantiateBinary(name, buildRequest, r)
+		_, err = instantiateClient.InstantiateBinary("foo", buildRequestOptions, r)
 
 		// errs = sanity.Checker.ValidateTestApp(ctx, namespace)
 		Expect(err).To(BeNil())
-		Expect(b).To(BeNil())
+		//Expect(json.Marshal(b)).To(BeNil())
 	})
 })
