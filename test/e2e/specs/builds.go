@@ -2,17 +2,20 @@ package specs
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	// Needed for InstantiateBinary
 	buildv1 "github.com/openshift/api/build/v1"
 	buildclientmanual "github.com/openshift/origin/pkg/build/client/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/openshift/openshift-azure/test/sanity"
-	"github.com/openshift/openshift-azure/test/util/log"
+
+	// Install APIs
+	_ "github.com/openshift/origin/pkg/api/install"
 )
 
 var _ = Describe("Openshift on Azure end user e2e tests [EndUser][EveryPR]", func() {
@@ -39,13 +42,12 @@ var _ = Describe("Openshift on Azure end user e2e tests [EndUser][EveryPR]", fun
 		ctx := context.Background()
 		namespace, err := sanity.Checker.CreateProject(ctx)
 		name := namespace + "-build"
-		testlogger := log.GetTestLogger()
 
-		// Expect(err).To(BeNil())
-		// defer func() {
-		// 	By("deleting project")
-		// 	_ = sanity.Checker.DeleteProject(ctx, namespace)
-		// }()
+		Expect(err).To(BeNil())
+		defer func() {
+			By("deleting project")
+			_ = sanity.Checker.DeleteProject(ctx, namespace)
+		}()
 
 		By("creating a binary BuildConfig")
 		bc := &buildv1.BuildConfig{
@@ -78,16 +80,16 @@ var _ = Describe("Openshift on Azure end user e2e tests [EndUser][EveryPR]", fun
 			},
 			AsFile: "Dockerfile",
 		}
-		bytes, err := json.Marshal(buildRequestOptions)
-		testlogger.Error(string(bytes))
-
 		instantiateClient := buildclientmanual.NewBuildInstantiateBinaryClient(buildClient, namespace)
 
 		r := strings.NewReader("FROM scratch")
-		_, err = instantiateClient.InstantiateBinary("foo", buildRequestOptions, r)
+		_, err = instantiateClient.InstantiateBinary(name, buildRequestOptions, r)
 
-		// errs = sanity.Checker.ValidateTestApp(ctx, namespace)
 		Expect(err).To(BeNil())
-		//Expect(json.Marshal(b)).To(BeNil())
+		// By("validating build completed for a binary BuildConfig")
+
+		// Wait for build to complete
+		// Verify build succeeded
+
 	})
 })
